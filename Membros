@@ -1,0 +1,145 @@
+local ui = setupUI([[
+Panel
+  height: 37
+
+  BotSwitch
+    id: title
+    anchors.top: parent.top
+    anchors.left: parent.left
+    anchors.right: parent.right
+    text-align: center
+    !text: tr('Esconder Membros Guild')
+
+  BotSwitch
+    id: hideguild
+    anchors.top: title.bottom
+    anchors.left: parent.left
+    anchors.right: parent.right
+    height: 17
+    margin-top: 4
+    text-align: center
+
+    $on:
+      text: Hide Guild Editor
+
+    $!on:
+      text: Show Guild Editor
+
+]])
+
+local hideguild = setupUI([[
+Panel
+  height: 50
+
+  Label
+    id: guildsName
+    anchors.top: parent.top
+    anchors.left: parent.left
+    margin-top: 8
+    margin-left: 40
+    height: 17
+    text: Enter allies guild
+    color: white
+
+  BotTextEdit
+    id: guildTextOne
+    anchors.top: guildsName.bottom
+    anchors.right: parent.right
+    anchors.left: parent.left
+    margin-top: 5
+    font: verdana-11px-rounded
+
+]])
+hideguild:hide()
+
+if not storage.hideguild then
+ storage.hideguild = {
+  enabled = false,
+}
+end
+
+local config = storage.hideguild
+
+ui.hideguild.onClick = function(widget)
+if not CaveBot.Config then return end
+if ui.hideguild:isOn() then
+ hideguild:hide()
+ ui.hideguild:setOn(false)
+else
+ hideguild:show()
+ ui.hideguild:setOn(true)
+end
+end
+
+ui.title:setOn(config.enabled)
+ui.title.onClick = function(widget)
+    config.enabled = not config.enabled
+    widget:setOn(config.enabled)
+end
+
+hideguild.guildTextOne:setText(config.guildasaliadas)
+hideguild.guildTextOne.onTextChange = function(widget, newText)
+ config.guildasaliadas = newText
+end
+
+local filterPanel = modules.game_battle.filterPanel
+modules.game_battle.battleWindow:show()
+
+modules.game_battle.doCreatureFitFilters = function(creature)
+    if creature:isLocalPlayer() then
+      return false
+    end
+    if creature:getHealthPercent() <= 0 then
+      return false
+    end
+
+    local pos = creature:getPosition()
+    if not pos then return false end
+
+    local isBotServer = vBot.BotServerMembers[creature:getName()]
+    local localPlayer = g_game.getLocalPlayer()
+    if pos.z ~= localPlayer:getPosition().z or not creature:canBeSeen() then return false end
+
+    local hidePlayers = filterPanel.buttons.hidePlayers:isChecked()
+    local hideNPCs = filterPanel.buttons.hideNPCs:isChecked()
+    local hideMonsters = filterPanel.buttons.hideMonsters:isChecked()
+    local hideSkulls = filterPanel.buttons.hideSkulls:isChecked()
+    local hideParty = filterPanel.buttons.hideParty:isChecked()
+  
+    if hidePlayers and creature:isPlayer() then
+      return false
+    elseif hideNPCs and creature:isNpc() then
+      return false
+    elseif hideMonsters and creature:isMonster() then
+      return false
+    elseif hideSkulls and creature:isPlayer() and creature:getSkull() == SkullNone then
+      return false
+    elseif hideParty and creature:getShield() > ShieldWhiteBlue then
+      return false
+    elseif config.enabled and ((isFriend(creature) or creature:getEmblem() == 1 or creature:getEmblem() == 4 or isBotServer)) then
+      return false
+    end
+
+    if storage.extras.checkPlayer and config.enabled then
+    local guildText = config.guildasaliadas:lower()
+    local creatureText = creature:getText():lower()
+     if guildText:len() > 0 then
+      local dividirs = string.split(guildText, ",")
+      for i=1,#dividirs do
+       local dividir = dividirs[i]
+       dividir = dividir:trim()
+       dividir = dividir:lower()
+       if dividir:len() > 10 then
+        dividir = dividir:sub(1,10)
+        dividir = dividir.."..."
+        if creatureText:find(dividir) then
+         return false
+        end
+       end
+      end
+     end
+    end
+    return true
+end
+ui.title:setTooltip("Ao adicionar uma nova guilda aliada, ligue e desligue \n o hide guild para esconder a guilda aliada adicionada.")
+ui.hideguild:setTooltip("Edite a lista de aliados usando virgula.")
